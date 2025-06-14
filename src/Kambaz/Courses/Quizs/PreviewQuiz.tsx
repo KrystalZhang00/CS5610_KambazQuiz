@@ -176,7 +176,9 @@ export default function PreviewQuiz() {
         if (remainingSeconds > 0) {
           setTimeLeft(remainingSeconds);
         } else {
-          handleSubmit();
+          // Time has expired - show warning but don't auto-submit
+          setTimeLeft(0);
+          setErrorMessage('Time limit has expired. Please submit your quiz.');
         }
       }
       
@@ -205,7 +207,8 @@ export default function PreviewQuiz() {
       setTimeLeft(prev => {
         if (prev !== null && prev <= 1) {
           clearInterval(intervalId);
-          handleSubmit();
+          // Don't auto-submit, just show warning
+          setErrorMessage('Time limit has expired. Please submit your quiz.');
           return 0;
         }
         return prev !== null ? prev - 1 : null;
@@ -361,11 +364,41 @@ export default function PreviewQuiz() {
       return;
     }
 
-    // Prepare raw answers for backend (no scoring calculation)
-    const rawAnswers = Object.entries(answers).map(([questionId, userAnswer]) => ({
+    // Get the current attempt from Redux state (has all answers including those from previous sessions)
+    const currentAttempt = quizAttempts.find((a: QuizAttempt) => a._id === attempt._id);
+    
+    // Prepare raw answers for backend - merge Redux state with local state to ensure no answers are lost
+    const reduxAnswers = currentAttempt?.answers || [];
+    const localAnswers = Object.entries(answers);
+    
+    // Create a map to merge answers (local state takes precedence for current session)
+    const answerMap = new Map();
+    
+    // First add all Redux answers
+    reduxAnswers.forEach(answer => {
+      answerMap.set(answer.questionId, answer.userAnswer);
+    });
+    
+    // Then add/override with local answers (current session)
+    localAnswers.forEach(([questionId, userAnswer]) => {
+      if (userAnswer) { // Only add non-empty answers
+        answerMap.set(questionId, userAnswer);
+      }
+    });
+    
+    // Convert to the format expected by backend
+    const rawAnswers = Array.from(answerMap.entries()).map(([questionId, userAnswer]) => ({
       questionId,
       userAnswer: userAnswer as string
     }));
+    
+    // Debug logging to help verify all answers are included
+    console.log('Submitting quiz with answers:', {
+      reduxAnswersCount: reduxAnswers.length,
+      localAnswersCount: localAnswers.length,
+      finalAnswersCount: rawAnswers.length,
+      answers: rawAnswers
+    });
     
     try {
       // Generate user's current local time for submission
