@@ -92,10 +92,10 @@ export default function EditQuiz() {
   };
 
   const handleSaveAndPublish = async () => {
-    const publishedQuiz = { ...quiz, published: true };
+    const publishedQuiz = { ...quiz, published: true, userRole: currentUser?.role };
     if (qid) {
       // Update quiz via backend API
-      const response = await fetch(`${API_BASE_URL}/api/quizzes/${qid}`, {
+      const response = await fetch(`${API_BASE_URL}/api/quizzes/${qid}?role=${currentUser?.role}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(publishedQuiz),
@@ -112,7 +112,7 @@ export default function EditQuiz() {
       }
     } else {
       // Create new published quiz via backend API
-      const response = await fetch(`${API_BASE_URL}/api/courses/${cid}/quizzes`, {
+      const response = await fetch(`${API_BASE_URL}/api/courses/${cid}/quizzes?role=${currentUser?.role}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(publishedQuiz),

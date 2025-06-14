@@ -364,14 +364,26 @@ export default function PreviewQuiz() {
     // Prepare raw answers for backend (no scoring calculation)
     const rawAnswers = Object.entries(answers).map(([questionId, userAnswer]) => ({
       questionId,
-      userAnswer
+      userAnswer: userAnswer as string
     }));
     
     try {
+      // Generate user's current local time for submission
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}`;
+
       // Submit to backend for calculation
       const resultAction = await dispatch(submitQuizAttemptAsync({
         attemptId: attempt._id,
-        submitData: { answers: rawAnswers }
+        submitData: { 
+          answers: rawAnswers,
+          submitTime: localTimeString
+        }
       }));
       
       if (submitQuizAttemptAsync.fulfilled.match(resultAction)) {
