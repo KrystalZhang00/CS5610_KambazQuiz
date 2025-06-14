@@ -6,21 +6,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { deleteQuiz, addQuiz, toggleQuizPublish, setQuizs } from "./reducer";
 import { API_BASE_URL } from '../../../config';
-
-interface Quiz {
-  _id: string;
-  title: string;
-  course: string;
-  description?: string;
-  points?: number;
-  dueDate?: string;
-  availableFrom?: string;
-  availableUntil?: string;
-  published?: boolean;
-  questions?: any[];
-  timeLimit?: number;
-  attempts?: number;
-}
+import type { Quiz } from './types';
 
 export default function Quizs() {
   const { cid } = useParams();
@@ -38,7 +24,7 @@ export default function Quizs() {
   const [sortBy, setSortBy] = useState<"name" | "dueDate" | "availableDate">("availableDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  useEffect(() => {
+  const fetchQuizzes = () => {
     if (!cid || !currentUser) return;
     // Fetch quizzes from backend API with role-based filtering
     const url = new URL(`${API_BASE_URL}/api/courses/${cid}/quizzes`);
@@ -58,13 +44,17 @@ export default function Quizs() {
         console.error('Failed to fetch quizzes:', err);
         dispatch(setQuizs([]));
       });
+  };
+
+  useEffect(() => {
+    fetchQuizzes();
   }, [cid, currentUser, dispatch]);
 
   // 获取当前课程的测验列表 (backend already filters by role)
   const courseQuizs = quizs.filter((quiz: Quiz) => quiz.course === cid);
 
   // 排序测验列表
-  const sortedQuizs = [...courseQuizs].sort((a, b) => {
+  const sortedQuizs = [...courseQuizs].sort((a: Quiz, b: Quiz) => {
     if (sortBy === "name") {
       return sortOrder === "asc" 
         ? a.title.localeCompare(b.title)
@@ -89,7 +79,7 @@ export default function Quizs() {
     if (quizToDelete) {
       try {
         // Delete quiz via backend API
-        const response = await fetch(`${API_BASE_URL}/api/quizzes/${quizToDelete._id}`, {
+        const response = await fetch(`${API_BASE_URL}/api/quizzes/${quizToDelete._id}?role=${currentUser?.role}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
         });
@@ -112,8 +102,8 @@ export default function Quizs() {
   const handlePublishToggle = async (quiz: Quiz) => {
     try {
       // Toggle publish status via backend API
-      const updatedQuiz = { ...quiz, published: !quiz.published };
-      const response = await fetch(`${API_BASE_URL}/api/quizzes/${quiz._id}`, {
+      const updatedQuiz = { ...quiz, published: !quiz.published, userRole: currentUser?.role };
+      const response = await fetch(`${API_BASE_URL}/api/quizzes/${quiz._id}?role=${currentUser?.role}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedQuiz),
@@ -245,85 +235,133 @@ export default function Quizs() {
                       {" "}Due {formatDate(quiz.dueDate)}
                     </div>
                     <div className="small text-muted">
-                      {quiz.points || 0} pts | {(quiz.questions?.length ?? 0)} Question{(quiz.questions?.length !== 1 ? 's' : '')}
+                      {quiz.points || 0} pts | {quiz.questions?.length || 0} Questions
                     </div>
                   </div>
                 </div>
               </div>
-
-              {currentUser?.role === "FACULTY" && (
-                <div className="d-flex align-items-center ms-2">
-                  <Dropdown className="me-2">
-                    <Dropdown.Toggle variant="light" id={`dropdown-${quiz._id}`}> 
+              
+              <div className="d-flex align-items-center">
+                {/* Show publish status - only faculty can click to toggle */}
+                {currentUser?.role === "FACULTY" ? (
+                  // Faculty: clickable publish/unpublish icons
+                  quiz.published ? (
+                    <FaCheckCircle 
+                      className="text-success me-2" 
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => handlePublishToggle(quiz)}
+                      title="Published - Click to unpublish"
+                    />
+                  ) : (
+                    <FaBan 
+                      className="text-secondary me-2" 
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => handlePublishToggle(quiz)}
+                      title="Unpublished - Click to publish"
+                    />
+                  )
+                ) : (
+                  // Students: read-only status indicators
+                  quiz.published ? (
+                    <FaCheckCircle 
+                      className="text-success me-2" 
+                      title="Published"
+                    />
+                  ) : (
+                    <FaBan 
+                      className="text-secondary me-2" 
+                      title="Unpublished"
+                    />
+                  )
+                )}
+                
+                {currentUser?.role === "FACULTY" && (
+                  <Dropdown>
+                    <Dropdown.Toggle variant="link" className="text-dark p-0 border-0">
                       <FaEllipsisV />
                     </Dropdown.Toggle>
                     <Dropdown.Menu>
                       <Dropdown.Item onClick={() => navigate(`/Kambaz/Courses/${cid}/Quizs/${quiz._id}/edit`)}>
-                        <FaEdit className="me-2" /> Edit
-                      </Dropdown.Item>
-                      <Dropdown.Item onClick={() => handleCopyQuiz(quiz)}>
-                        <FaCopy className="me-2" /> Copy
+                        <FaEdit className="me-2" />
+                        Edit
                       </Dropdown.Item>
                       <Dropdown.Item onClick={() => handleDeleteQuiz(quiz)}>
-                        <FaTrash className="me-2" /> Delete
+                        <FaTrash className="me-2" />
+                        Delete
                       </Dropdown.Item>
+                      <Dropdown.Item onClick={() => handleCopyQuiz(quiz)}>
+                        <FaCopy className="me-2" />
+                        Copy
+                      </Dropdown.Item>
+                      <Dropdown.Divider />
                       <Dropdown.Item onClick={() => handlePublishToggle(quiz)}>
                         {quiz.published ? (
-                          <><FaBan className="me-2" /> Unpublish</>
+                          <>
+                            <FaBan className="me-2" />
+                            Unpublish
+                          </>
                         ) : (
-                          <><FaCheckCircle className="me-2" /> Publish</>
+                          <>
+                            <FaCheckCircle className="me-2" />
+                            Publish
+                          </>
                         )}
-                      </Dropdown.Item>
-                      <Dropdown.Item onClick={() => navigate(`/Kambaz/Courses/${cid}/Quizs/${quiz._id}/preview`)}>
-                        <FaCheckCircle className="me-2" /> Preview
                       </Dropdown.Item>
                     </Dropdown.Menu>
                   </Dropdown>
-                  <span
-                    className="fs-4 align-self-center"
-                    style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '38px', width: '38px', justifyContent: 'center', background: 'none', borderRadius: '0.375rem' }}
-                    title={quiz.published ? "已发布，点击取消发布" : "未发布，点击发布"}
-                    onClick={() => handlePublishToggle(quiz)}
-                  >
-                    {quiz.published ? "✅" : "🚫"}
-                  </span>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         );
       })}
 
       {sortedQuizs.length === 0 && (
-        <div className="text-center text-muted py-4">
-          {currentUser?.role === "FACULTY" ? "No quizs yet. Click + Quiz to create your first quiz." : "No quizs available."}
+        <div className="text-center py-5">
+          <BsQuestionCircle className="text-muted mb-3" style={{ fontSize: '3rem' }} />
+          <h5 className="text-muted">No quizzes yet</h5>
+          <p className="text-muted">Click the "Quiz" button to create your first quiz</p>
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Delete Quiz</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to delete "{quizToDelete?.title}"? This action cannot be undone.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={confirmDeleteQuiz}>
+            Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
+      {/* Copy Quiz Modal */}
       <Modal show={showCopyModal} onHide={() => setShowCopyModal(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Copy Quiz</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form>
-            <Form.Group className="mb-3">
-              <Form.Label>Select Course to Copy To</Form.Label>
-              <Form.Select
-                value={selectedCourse}
-                onChange={(e) => setSelectedCourse(e.target.value)}
-              >
-                <option value="">Select a course...</option>
-                {courses
-                  .filter((course: any) => course._id !== cid)
-                  .map((course: any) => (
-                    <option key={course._id} value={course._id}>
-                      {course.name}
-                    </option>
-                  ))}
-              </Form.Select>
-            </Form.Group>
-          </Form>
+          <Form.Group>
+            <Form.Label>Select destination course:</Form.Label>
+            <Form.Select
+              value={selectedCourse}
+              onChange={(e) => setSelectedCourse(e.target.value)}
+            >
+              <option value="">Choose a course...</option>
+              {courses.map((course: any) => (
+                <option key={course._id} value={course._id}>
+                  {course.name}
+                </option>
+              ))}
+            </Form.Select>
+          </Form.Group>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowCopyModal(false)}>
@@ -335,24 +373,6 @@ export default function Quizs() {
             disabled={!selectedCourse}
           >
             Copy Quiz
-          </Button>
-        </Modal.Footer>
-      </Modal>
-
-
-      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Delete Quiz</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          Are you sure you want to delete this quiz? This action cannot be undone.
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
-            Cancel
-          </Button>
-          <Button variant="danger" onClick={confirmDeleteQuiz}>
-            Delete
           </Button>
         </Modal.Footer>
       </Modal>

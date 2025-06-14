@@ -3,68 +3,12 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { Button, Card, Badge, Table, Row, Col } from "react-bootstrap";
 import { FaEdit, FaCheckCircle, FaBan, FaEye } from "react-icons/fa";
 import { useSelector, useDispatch } from "react-redux";
-import { toggleQuizPublish } from "./reducer";
+import { toggleQuizPublish, updateQuiz } from "./reducer";
 import { fetchQuizAttemptsAsync } from "./quizAttemptsReducer";
 import type { AppDispatch } from "../../store";
 import { API_BASE_URL } from '../../../config';
-
-interface Question {
-  _id: string;
-  type: "multiple_choice" | "true_false" | "fill_in_blank";
-  title: string;
-  question: string;
-  points: number;
-  choices?: {
-    id: string;
-    text: string;
-  }[];
-  correctOption?: string;
-  correctAnswer?: boolean;
-  possibleAnswers?: string[];
-}
-
-interface Quiz {
-  _id: string;
-  title: string;
-  course: string;
-  description?: string;
-  points?: number;
-  dueDate?: string;
-  availableFrom?: string;
-  availableUntil?: string;
-  published?: boolean;
-  questions: Question[];
-  timeLimit?: number;
-  attempts?: number;
-  shuffleAnswers?: boolean;
-  quizType?: string;
-  assignmentGroup?: string;
-  multipleAttempts?: boolean;
-  showCorrectAnswers?: string;
-  accessCode?: string;
-  oneQuestionAtTime?: boolean;
-  webcamRequired?: boolean;
-  lockQuestionsAfterAnswering?: boolean;
-  viewResponses?: string;
-  requireResponsiveLockDown?: boolean;
-  requireQuizResults?: boolean;
-}
-
-interface QuizAttempt {
-  _id: string;
-  quiz: string;
-  user: string;
-  startTime: string;
-  endTime?: string;
-  score: number;
-  totalPoints: number;
-  answers: {
-    questionId: string;
-    userAnswer: string;
-    isCorrect: boolean;
-  }[];
-  attemptNumber: number;
-}
+import type { Quiz, QuizAttempt } from './types';
+import { DEFAULT_QUIZ_VALUES } from './types';
 
 export default function QuizDetail() {
   const { cid, qid } = useParams<{ cid: string; qid: string }>();
@@ -84,30 +28,34 @@ export default function QuizDetail() {
   useEffect(() => {
     if (!qid) return;
     
+    // First try to get from Redux store for immediate display
     const foundQuiz = quizs.find((q: Quiz) => q._id === qid);
     if (foundQuiz) {
-      // Initialize default properties if they don't exist
       const quizWithDefaults: Quiz = {
         ...foundQuiz,
-        quizType: foundQuiz.quizType || "Graded Quiz",
-        assignmentGroup: foundQuiz.assignmentGroup || "Quizzes",
-        shuffleAnswers: foundQuiz.shuffleAnswers !== undefined ? foundQuiz.shuffleAnswers : true,
-        timeLimit: foundQuiz.timeLimit || 30,
-        multipleAttempts: foundQuiz.multipleAttempts !== undefined ? foundQuiz.multipleAttempts : false,
-        attempts: foundQuiz.attempts || 1,
-        showCorrectAnswers: foundQuiz.showCorrectAnswers || "Immediately",
-        accessCode: foundQuiz.accessCode || "",
-        oneQuestionAtTime: foundQuiz.oneQuestionAtTime !== undefined ? foundQuiz.oneQuestionAtTime : true,
-        webcamRequired: foundQuiz.webcamRequired !== undefined ? foundQuiz.webcamRequired : false,
-        lockQuestionsAfterAnswering: foundQuiz.lockQuestionsAfterAnswering !== undefined ? foundQuiz.lockQuestionsAfterAnswering : false,
-        viewResponses: foundQuiz.viewResponses || "Always",
-        requireResponsiveLockDown: foundQuiz.requireResponsiveLockDown !== undefined ? foundQuiz.requireResponsiveLockDown : false,
-        requireQuizResults: foundQuiz.requireQuizResults !== undefined ? foundQuiz.requireQuizResults : false,
+        ...DEFAULT_QUIZ_VALUES,
+        ...foundQuiz, // Override defaults with actual values
       };
-      
       setQuiz(quizWithDefaults);
     }
-  }, [qid, quizs]);
+    
+    // Always fetch fresh data from backend to ensure we have the latest
+    fetch(`${API_BASE_URL}/api/quizzes/${qid}?role=${currentUser?.role}`)
+      .then(res => res.json())
+      .then(freshQuiz => {
+        const quizWithDefaults: Quiz = {
+          ...DEFAULT_QUIZ_VALUES,
+          ...freshQuiz, // Override defaults with backend values
+        };
+        setQuiz(quizWithDefaults);
+        // Update Redux store with fresh data WITH defaults applied
+        dispatch(updateQuiz(quizWithDefaults));
+      })
+      .catch(err => {
+        console.error('Failed to fetch fresh quiz data:', err);
+        // If fetch fails, keep the Redux store data
+      });
+  }, [qid, currentUser?.role, dispatch]);
 
   // Separate useEffect for fetching quiz attempts (students only)
   useEffect(() => {
@@ -136,8 +84,8 @@ export default function QuizDetail() {
     if (quiz) {
       try {
         // Toggle publish status via backend API
-        const updatedQuiz = { ...quiz, published: !quiz.published };
-        const response = await fetch(`${API_BASE_URL}/api/quizzes/${quiz._id}`, {
+        const updatedQuiz = { ...quiz, published: !quiz.published, userRole: currentUser?.role };
+        const response = await fetch(`${API_BASE_URL}/api/quizzes/${quiz._id}?role=${currentUser?.role}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedQuiz),
@@ -160,7 +108,7 @@ export default function QuizDetail() {
     if (!quiz) return 0;
     
     if (quiz.questions && quiz.questions.length > 0) {
-      return quiz.questions.reduce((sum: number, q: Question) => sum + (q.points || 0), 0);
+      return quiz.questions.reduce((sum: number, q: any) => sum + (q.points || 0), 0);
     }
     
     return quiz.points || 0;
@@ -182,7 +130,7 @@ export default function QuizDetail() {
     if (availableUntil && now > availableUntil) return false;
     
     // Check if user has any attempts left
-    const completedAttempts = userAttempts.filter(a => a.endTime);
+    const completedAttempts = userAttempts.filter((a: QuizAttempt) => a.endTime);
     
     // If multipleAttempts is false, only allow one attempt
     if (!quiz.multipleAttempts && completedAttempts.length > 0) return false;
@@ -266,7 +214,7 @@ export default function QuizDetail() {
             <tbody>
               <tr>
                 <td width="30%" className="ps-3 py-2">Quiz Type</td>
-                <td width="70%" className="py-2">{quiz.quizType || "Graded Quiz"}</td>
+                <td width="70%" className="py-2">{quiz.quizType}</td>
               </tr>
               <tr>
                 <td className="ps-3 py-2">Points</td>
@@ -274,7 +222,7 @@ export default function QuizDetail() {
               </tr>
               <tr>
                 <td className="ps-3 py-2">Assignment Group</td>
-                <td className="py-2">{quiz.assignmentGroup || "Quizzes"}</td>
+                <td className="py-2">{quiz.assignmentGroup}</td>
               </tr>
               <tr>
                 <td className="ps-3 py-2">Shuffle Answers</td>
@@ -282,7 +230,7 @@ export default function QuizDetail() {
               </tr>
               <tr>
                 <td className="ps-3 py-2">Time Limit</td>
-                <td className="py-2">{quiz.timeLimit || 30} Minutes</td>
+                <td className="py-2">{quiz.timeLimit} Minutes</td>
               </tr>
               <tr>
                 <td className="ps-3 py-2">Multiple Attempts</td>
@@ -290,15 +238,11 @@ export default function QuizDetail() {
               </tr>
               <tr>
                 <td className="ps-3 py-2">Allowed Attempts</td>
-                <td className="py-2">{quiz.attempts || 1}</td>
-              </tr>
-              <tr>
-                <td className="ps-3 py-2">View Responses</td>
-                <td className="py-2">{quiz.viewResponses || "Always"}</td>
+                <td className="py-2">{quiz.attempts}</td>
               </tr>
               <tr>
                 <td className="ps-3 py-2">Show Correct Answers</td>
-                <td className="py-2">{quiz.showCorrectAnswers || "Immediately"}</td>
+                <td className="py-2">{quiz.showCorrectAnswers}</td>
               </tr>
               <tr>
                 <td className="ps-3 py-2">Access Code</td>
@@ -307,14 +251,6 @@ export default function QuizDetail() {
               <tr>
                 <td className="ps-3 py-2">One Question at a Time</td>
                 <td className="py-2">{quiz.oneQuestionAtTime ? "Yes" : "No"}</td>
-              </tr>
-              <tr>
-                <td className="ps-3 py-2">Require Responsive LockDown</td>
-                <td className="py-2">{quiz.requireResponsiveLockDown ? "Yes" : "No"}</td>
-              </tr>
-              <tr>
-                <td className="ps-3 py-2">Required to View Quiz Results</td>
-                <td className="py-2">{quiz.requireQuizResults ? "Yes" : "No"}</td>
               </tr>
               <tr>
                 <td className="ps-3 py-2">Webcam Required</td>
@@ -370,7 +306,7 @@ export default function QuizDetail() {
                   <tbody>
                     {userAttempts
                       .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
-                      .map((attempt) => (
+                      .map((attempt: QuizAttempt) => (
                         <tr key={attempt._id}>
                           <td>{attempt.attemptNumber}</td>
                           <td>{new Date(attempt.startTime).toLocaleDateString()}</td>

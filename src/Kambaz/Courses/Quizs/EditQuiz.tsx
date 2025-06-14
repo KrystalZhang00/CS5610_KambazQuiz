@@ -1,35 +1,12 @@
-import { useState, useEffect } from "react";
-import type { ChangeEvent, KeyboardEvent } from "react";
-import { Form, Button, Card, Badge, CloseButton, Alert, Row, Col, Tabs, Tab } from "react-bootstrap";
+import React, { useState, useEffect } from "react";
+import { Form, Button, Card, Alert, Row, Col, Tabs, Tab } from "react-bootstrap";
 import { useParams, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { updateQuiz, addQuiz } from "./reducer";
 import QuestionsList from "./QuestionsList";
 import { API_BASE_URL } from '../../../config';
-
-interface Quiz {
-  _id: string;
-  title: string;
-  course: string;
-  description?: string;
-  points?: number;
-  dueDate?: string;
-  availableFrom?: string;
-  availableUntil?: string;
-  published?: boolean;
-  questions: any[];
-  timeLimit?: number;
-  attempts?: number;
-  quizType?: string;
-  assignmentGroup?: string;
-  shuffleAnswers?: boolean;
-  multipleAttempts?: boolean;
-  showCorrectAnswers?: string;
-  accessCode?: string;
-  oneQuestionAtTime?: boolean;
-  webcamRequired?: boolean;
-  lockQuestionsAfterAnswering?: boolean;
-}
+import type { Quiz } from './types';
+import { DEFAULT_QUIZ_VALUES } from './types';
 
 export default function EditQuiz() {
   const { cid, qid } = useParams();
@@ -38,30 +15,13 @@ export default function EditQuiz() {
 
   const { currentUser } = useSelector((state: any) => state.accountReducer);
   const { quizs } = useSelector((state: any) => state.quizsReducer);
-  const [assignees, setAssignees] = useState<string[]>(["Everyone"]);
-  const [input, setInput] = useState("");
   const [quiz, setQuiz] = useState<Quiz>({
     _id: "",
     title: "",
     course: cid || "",
     description: "",
-    points: 100,
-    dueDate: "",
-    availableFrom: "",
-    availableUntil: "",
-    published: false,
     questions: [],
-    timeLimit: 0,
-    attempts: 1,
-    quizType: "practice_quiz",
-    assignmentGroup: "quizzes",
-    shuffleAnswers: false,
-    multipleAttempts: false,
-    showCorrectAnswers: "never",
-    accessCode: "",
-    oneQuestionAtTime: false,
-    webcamRequired: false,
-    lockQuestionsAfterAnswering: false
+    ...DEFAULT_QUIZ_VALUES
   });
   const [saveMessage] = useState("");
   const [activeTab, setActiveTab] = useState("details");
@@ -75,73 +35,49 @@ export default function EditQuiz() {
 
   useEffect(() => {
     if (!isNewQuiz && foundQuiz) {
-      setQuiz(foundQuiz);
+      setQuiz({
+        ...DEFAULT_QUIZ_VALUES,
+        ...foundQuiz
+      });
     } else if (isNewQuiz) {
       setQuiz({
         _id: new Date().getTime().toString(),
         title: "New Quiz",
         course: cid || "",
         description: "",
-        points: 100,
-        dueDate: "",
-        availableFrom: "",
-        availableUntil: "",
-        published: false,
         questions: [],
-        timeLimit: 20,
-        attempts: 1,
-        quizType: "Graded Quiz",
-        assignmentGroup: "Quizzes",
-        shuffleAnswers: true,
-        multipleAttempts: false,
-        showCorrectAnswers: "Immediately",
-        accessCode: "",
-        oneQuestionAtTime: true,
-        webcamRequired: false,
-        lockQuestionsAfterAnswering: false
+        ...DEFAULT_QUIZ_VALUES
       });
     }
   }, [qid, isNewQuiz, foundQuiz, cid]);
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => setInput(e.target.value);
 
-  const handleInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if ((e.key === "Enter" || e.key === ",") && input.trim()) {
-      e.preventDefault();
-      if (!assignees.includes(input.trim())) {
-        setAssignees([...assignees, input.trim()]);
-      }
-      setInput("");
-    }
-  };
-
-  const handleRemove = (name: string) => {
-    setAssignees(assignees.filter((a) => a !== name));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (qid) {
       // Update quiz via backend API
-      const response = await fetch(`${API_BASE_URL}/api/quizzes/${qid}`, {
+      const response = await fetch(`${API_BASE_URL}/api/quizzes/${qid}?role=${currentUser?.role}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(quiz),
+        body: JSON.stringify({ ...quiz, userRole: currentUser?.role }),
       });
       if (response.ok) {
         const updatedQuiz = await response.json();
         // Update Redux store with the latest data from backend
         dispatch(updateQuiz(updatedQuiz));
+        // Update local component state with backend response
+        setQuiz(updatedQuiz);
         navigate(`/Kambaz/Courses/${cid}/Quizs/${qid}`);
       } else {
         alert('Failed to update quiz');
       }
     } else {
       // Create new quiz via backend API
-      const response = await fetch(`${API_BASE_URL}/api/courses/${cid}/quizzes`, {
+      const response = await fetch(`${API_BASE_URL}/api/courses/${cid}/quizzes?role=${currentUser?.role}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(quiz),
+        body: JSON.stringify({ ...quiz, userRole: currentUser?.role }),
       });
       if (response.ok) {
         const newQuiz = await response.json();
@@ -168,6 +104,8 @@ export default function EditQuiz() {
         const updatedQuiz = await response.json();
         // Update Redux store with the latest data from backend
         dispatch(updateQuiz(updatedQuiz));
+        // Update local component state with backend response
+        setQuiz(updatedQuiz);
         navigate(`/Kambaz/Courses/${cid}/Quizs`);
       } else {
         alert('Failed to update quiz');
@@ -193,7 +131,7 @@ export default function EditQuiz() {
 
   // Handler to add a question
   const handleAddQuestion = (newQuestion: any) => {
-    setQuiz(prevQuiz => ({
+    setQuiz((prevQuiz: Quiz) => ({
       ...prevQuiz,
       questions: [...(prevQuiz.questions || []), newQuestion]
     }));
@@ -201,36 +139,40 @@ export default function EditQuiz() {
 
   // Handler to edit a question
   const handleEditQuestion = (updatedQuestion: any) => {
-    setQuiz(prevQuiz => ({
+    setQuiz((prevQuiz: Quiz) => ({
       ...prevQuiz,
-      questions: (prevQuiz.questions || []).map(q => q._id === updatedQuestion._id ? updatedQuestion : q)
+      questions: (prevQuiz.questions || []).map((q: any) => 
+        q._id === updatedQuestion._id ? updatedQuestion : q
+      )
     }));
   };
 
   // Handler to delete a question
   const handleDeleteQuestion = (questionId: string) => {
-    setQuiz(prevQuiz => ({
+    setQuiz((prevQuiz: Quiz) => ({
       ...prevQuiz,
-      questions: (prevQuiz.questions || []).filter(q => q._id !== questionId)
+      questions: (prevQuiz.questions || []).filter((q: any) => q._id !== questionId)
     }));
   };
 
   if (!canEdit) {
-    return <Navigate to={`/Kambaz/Courses/${cid}/Quizs`} />;
-  }
-
-  if (!isNewQuiz && !quiz) {
-    return <div>Loading...</div>;
+    return <Navigate to={`/Kambaz/Courses/${cid}/Quizs`} replace />;
   }
 
   return (
-    <div className="container mt-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h3>{isNewQuiz ? "Create New Quiz" : "Edit Quiz"}</h3>
+    <div className="container-fluid">
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h2>{isNewQuiz ? "New Quiz" : "Edit Quiz"}</h2>
         <div>
-          <Button variant="secondary" className="me-2" onClick={handleCancel}>Cancel</Button>
-          <Button variant="primary" onClick={handleSubmit}>Save</Button>
-          <Button variant="success" className="ms-2" onClick={handleSaveAndPublish}>Save & Publish</Button>
+          <Button variant="outline-secondary" className="me-2" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button variant="outline-primary" className="me-2" onClick={handleSubmit}>
+            Save
+          </Button>
+          <Button variant="primary" onClick={handleSaveAndPublish}>
+            Save & Publish
+          </Button>
         </div>
       </div>
 
@@ -240,39 +182,42 @@ export default function EditQuiz() {
         </Alert>
       )}
 
-      <Tabs 
-        activeKey={activeTab} 
-        onSelect={(k) => setActiveTab(k || "details")} 
-        className="mb-3"
-      >
+      <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k || "details")} className="mb-3">
         <Tab eventKey="details" title="Details">
-          <Form onSubmit={handleSubmit}>
-            <Card className="mb-4">
-              <Card.Body>
-                <Form.Group className="mb-3">
-                  <Form.Label>Quiz Title</Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={quiz.title}
-                    onChange={(e) => setQuiz({ ...quiz, title: e.target.value })}
-                    required
-                  />
-                </Form.Group>
+          <Card>
+            <Card.Body>
+              <Form onSubmit={handleSubmit}>
+                <Row className="mb-3">
+                  <Col md={8}>
+                    <Form.Group>
+                      <Form.Label>Quiz Title</Form.Label>
+                      <Form.Control
+                        type="text"
+                        value={quiz.title}
+                        onChange={(e) => setQuiz({ ...quiz, title: e.target.value })}
+                        required
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
 
-                <Form.Group className="mb-3">
-                  <Form.Label>Description</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={5}
-                    value={quiz.description || ""}
-                    onChange={(e) => setQuiz({ ...quiz, description: e.target.value })}
-                    placeholder="Enter quiz description..."
-                  />
-                </Form.Group>
+                <Row className="mb-3">
+                  <Col>
+                    <Form.Group>
+                      <Form.Label>Quiz Instructions</Form.Label>
+                      <Form.Control
+                        as="textarea"
+                        rows={3}
+                        value={quiz.description || ""}
+                        onChange={(e) => setQuiz({ ...quiz, description: e.target.value })}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
 
-                <Row>
+                <Row className="mb-3">
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group>
                       <Form.Label>Quiz Type</Form.Label>
                       <Form.Select
                         value={quiz.quizType}
@@ -286,7 +231,7 @@ export default function EditQuiz() {
                     </Form.Group>
                   </Col>
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group>
                       <Form.Label>Assignment Group</Form.Label>
                       <Form.Select
                         value={quiz.assignmentGroup}
@@ -301,11 +246,13 @@ export default function EditQuiz() {
                   </Col>
                 </Row>
 
-                <Row>
+                <Row className="mb-3">
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group>
                       <Form.Check
                         type="switch"
+                        id="time-limit-switch"
+                        label="Time Limit"
                         checked={quiz.timeLimit !== undefined && quiz.timeLimit > 0}
                         onChange={(e) => {
                           if (e.target.checked) {
@@ -314,92 +261,86 @@ export default function EditQuiz() {
                             setQuiz({ ...quiz, timeLimit: 0 });
                           }
                         }}
-                        label="Enable Time Limit"
-                        className="mb-2"
                       />
                       {quiz.timeLimit !== undefined && quiz.timeLimit > 0 && (
-                        <div>
-                          <Form.Label>Time Limit (minutes)</Form.Label>
-                          <Form.Control
-                            type="number"
-                            min="1"
-                            value={quiz.timeLimit}
-                            onChange={(e) => setQuiz({ ...quiz, timeLimit: parseInt(e.target.value) })}
-                          />
-                        </div>
+                        <Form.Control
+                          type="number"
+                          min="1"
+                          value={quiz.timeLimit}
+                          onChange={(e) => setQuiz({ ...quiz, timeLimit: parseInt(e.target.value) || 20 })}
+                          className="mt-2"
+                          placeholder="Minutes"
+                        />
                       )}
                     </Form.Group>
                   </Col>
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group>
                       <Form.Label>Points</Form.Label>
                       <Form.Control
                         type="number"
                         min="0"
                         value={quiz.points || 100}
-                        onChange={(e) => setQuiz({ ...quiz, points: parseInt(e.target.value) })}
+                        onChange={(e) => setQuiz({ ...quiz, points: parseInt(e.target.value) || 100 })}
                       />
                     </Form.Group>
                   </Col>
                 </Row>
 
-                <Row>
+                <Row className="mb-3">
                   <Col md={6}>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Multiple Attempts</Form.Label>
+                    <Form.Group>
                       <Form.Check
                         type="switch"
+                        id="multiple-attempts-switch"
+                        label="Allow Multiple Attempts"
                         checked={quiz.multipleAttempts}
                         onChange={(e) => setQuiz({ ...quiz, multipleAttempts: e.target.checked })}
-                        label="Allow multiple attempts"
                       />
-                    </Form.Group>
-                  </Col>
-                  <Col md={6}>
-                    {quiz.multipleAttempts && (
-                      <Form.Group className="mb-3">
-                        <Form.Label>Number of Attempts</Form.Label>
+                      {quiz.multipleAttempts && (
                         <Form.Control
                           type="number"
                           min="1"
                           value={quiz.attempts || 1}
-                          onChange={(e) => setQuiz({ ...quiz, attempts: parseInt(e.target.value) })}
+                          onChange={(e) => setQuiz({ ...quiz, attempts: parseInt(e.target.value) || 1 })}
+                          className="mt-2"
+                          placeholder="Number of attempts"
                         />
-                      </Form.Group>
-                    )}
+                      )}
+                    </Form.Group>
                   </Col>
-                </Row>
-
-                <Row>
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group>
                       <Form.Label>Show Correct Answers</Form.Label>
                       <Form.Select
                         value={quiz.showCorrectAnswers}
                         onChange={(e) => setQuiz({ ...quiz, showCorrectAnswers: e.target.value })}
                       >
-                        <option value="never">Never</option>
-                        <option value="immediately">Immediately</option>
-                        <option value="after_due_date">After Due Date</option>
+                        <option value="Immediately">Immediately</option>
+                        <option value="Never">Never</option>
+                        <option value="After Due Date">After Due Date</option>
                       </Form.Select>
                     </Form.Group>
                   </Col>
-                  <Col md={6}>
-                    <Form.Group className="mb-3">
+                </Row>
+
+                <Row className="mb-3">
+                  <Col>
+                    <Form.Group>
                       <Form.Label>Access Code</Form.Label>
                       <Form.Control
                         type="text"
                         value={quiz.accessCode || ""}
                         onChange={(e) => setQuiz({ ...quiz, accessCode: e.target.value })}
-                        placeholder="Optional"
+                        placeholder="Leave blank for no access code"
                       />
                     </Form.Group>
                   </Col>
                 </Row>
 
-                <Row>
+                <Row className="mb-3">
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group>
                       <Form.Label>Due Date</Form.Label>
                       <Form.Control
                         type="datetime-local"
@@ -409,7 +350,7 @@ export default function EditQuiz() {
                     </Form.Group>
                   </Col>
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group>
                       <Form.Label>Available From</Form.Label>
                       <Form.Control
                         type="datetime-local"
@@ -420,9 +361,9 @@ export default function EditQuiz() {
                   </Col>
                 </Row>
 
-                <Row>
+                <Row className="mb-3">
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group>
                       <Form.Label>Available Until</Form.Label>
                       <Form.Control
                         type="datetime-local"
@@ -431,72 +372,57 @@ export default function EditQuiz() {
                       />
                     </Form.Group>
                   </Col>
-                  <Col md={6}>
-                    <Form.Group className="mb-3">
-                      <Form.Check
-                        type="switch"
-                        checked={quiz.oneQuestionAtTime}
-                        onChange={(e) => setQuiz({ ...quiz, oneQuestionAtTime: e.target.checked })}
-                        label="One Question at a Time"
-                      />
-                    </Form.Group>
+                </Row>
+
+                <Row className="mb-3">
+                  <Col md={4}>
+                    <Form.Check
+                      type="switch"
+                      id="one-question-switch"
+                      label="One Question at a Time"
+                      checked={quiz.oneQuestionAtTime}
+                      onChange={(e) => setQuiz({ ...quiz, oneQuestionAtTime: e.target.checked })}
+                    />
+                  </Col>
+                  <Col md={4}>
+                    <Form.Check
+                      type="switch"
+                      id="shuffle-answers-switch"
+                      label="Shuffle Answers"
+                      checked={quiz.shuffleAnswers}
+                      onChange={(e) => setQuiz({ ...quiz, shuffleAnswers: e.target.checked })}
+                    />
+                  </Col>
+                  <Col md={4}>
+                    <Form.Check
+                      type="switch"
+                      id="lock-questions-switch"
+                      label="Lock Questions After Answering"
+                      checked={quiz.lockQuestionsAfterAnswering}
+                      onChange={(e) => setQuiz({ ...quiz, lockQuestionsAfterAnswering: e.target.checked })}
+                    />
                   </Col>
                 </Row>
 
-                <Row>
+                <Row className="mb-3">
                   <Col md={6}>
-                    <Form.Group className="mb-3">
-                      <Form.Check
-                        type="switch"
-                        checked={quiz.shuffleAnswers}
-                        onChange={(e) => setQuiz({ ...quiz, shuffleAnswers: e.target.checked })}
-                        label="Shuffle Answers"
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col md={6}>
-                    <Form.Group className="mb-3">
-                      <Form.Check
-                        type="switch"
-                        checked={quiz.lockQuestionsAfterAnswering}
-                        onChange={(e) => setQuiz({ ...quiz, lockQuestionsAfterAnswering: e.target.checked })}
-                        label="Lock Questions After Answering"
-                      />
-                    </Form.Group>
+                    <Form.Check
+                      type="switch"
+                      id="webcam-required-switch"
+                      label="Webcam Required"
+                      checked={quiz.webcamRequired}
+                      onChange={(e) => setQuiz({ ...quiz, webcamRequired: e.target.checked })}
+                    />
                   </Col>
                 </Row>
-              </Card.Body>
-            </Card>
-
-            <Card className="mb-3">
-              <Card.Header>Assign</Card.Header>
-              <Card.Body>
-                <Form.Label className="mb-2">Assign to</Form.Label>
-                <div className="mb-3 d-flex flex-wrap gap-2 align-items-center">
-                  {assignees.map((name) => (
-                    <Badge bg="secondary" key={name} className="d-flex align-items-center">
-                      {name}
-                      <CloseButton onClick={() => handleRemove(name)} className="ms-1" />
-                    </Badge>
-                  ))}
-                  <Form.Control
-                    type="text"
-                    value={input}
-                    onChange={handleInputChange}
-                    onKeyDown={handleInputKeyDown}
-                    placeholder="Add assignee and press Enter or ,"
-                    className="border-0 shadow-none flex-grow-1"
-                    style={{ minWidth: 120, maxWidth: 200 }}
-                  />
-                </div>
-              </Card.Body>
-            </Card>
-          </Form>
+              </Form>
+            </Card.Body>
+          </Card>
         </Tab>
-        
+
         <Tab eventKey="questions" title="Questions">
           <QuestionsList
-            questions={Array.isArray(quiz.questions) ? quiz.questions : []}
+            questions={quiz.questions || []}
             onAddQuestion={handleAddQuestion}
             onEditQuestion={handleEditQuestion}
             onDeleteQuestion={handleDeleteQuestion}
