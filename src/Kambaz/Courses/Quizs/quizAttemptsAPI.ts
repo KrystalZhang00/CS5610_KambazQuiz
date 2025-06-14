@@ -27,6 +27,7 @@ export interface SubmitAttemptRequest {
     questionId: string;
     userAnswer: string;
   }[];
+  submitTime?: string;
 }
 
 // Create a new quiz attempt
