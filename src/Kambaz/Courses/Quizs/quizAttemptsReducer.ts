@@ -1,17 +1,46 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { quizAttempts } from "../../Database";
+import * as quizAttemptsAPI from "./quizAttemptsAPI";
 
 const initialState = {
   quizAttempts: quizAttempts,
+  loading: false,
+  error: null as string | null,
 };
+
+// Async thunks for API calls
+export const createQuizAttemptAsync = createAsyncThunk(
+  'quizAttempts/create',
+  async ({ quizId, attemptData }: { quizId: string; attemptData: quizAttemptsAPI.CreateAttemptRequest }) => {
+    const response = await quizAttemptsAPI.createQuizAttempt(quizId, attemptData);
+    return response;
+  }
+);
+
+export const submitQuizAttemptAsync = createAsyncThunk(
+  'quizAttempts/submit',
+  async ({ attemptId, submitData }: { attemptId: string; submitData: quizAttemptsAPI.SubmitAttemptRequest }) => {
+    const response = await quizAttemptsAPI.submitQuizAttempt(attemptId, submitData);
+    return response;
+  }
+);
+
+export const fetchQuizAttemptsAsync = createAsyncThunk(
+  'quizAttempts/fetch',
+  async ({ quizId, userId }: { quizId: string; userId?: string }) => {
+    const response = await quizAttemptsAPI.fetchQuizAttempts(quizId, userId);
+    return response;
+  }
+);
 
 const quizAttemptsSlice = createSlice({
   name: "quizAttempts",
   initialState,
   reducers: {
+    // Keep local state management for UI responsiveness
     addQuizAttempt: (state, { payload: attempt }) => {
       const newAttempt = {
-        _id: new Date().getTime().toString(),
+        _id: attempt._id || new Date().getTime().toString(),
         quiz: attempt.quiz,
         user: attempt.user,
         startTime: attempt.startTime || new Date().toISOString(),
@@ -31,17 +60,7 @@ const quizAttemptsSlice = createSlice({
     deleteQuizAttempt: (state, { payload: attemptId }) => {
       state.quizAttempts = state.quizAttempts.filter((a: any) => a._id !== attemptId);
     },
-    submitQuizAttempt: (state, { payload: { attemptId, answers, score, totalPoints } }) => {
-      state.quizAttempts = state.quizAttempts.map((a: any) =>
-        a._id === attemptId ? {
-          ...a,
-          endTime: new Date().toISOString(),
-          answers,
-          score,
-          totalPoints
-        } : a
-      ) as any;
-    },
+    // Keep for local answer updates during quiz taking
     updateQuizAttemptAnswers: (state, { payload: { attemptId, questionId, userAnswer } }) => {
       state.quizAttempts = state.quizAttempts.map((a: any) => {
         if (a._id === attemptId) {
@@ -71,7 +90,66 @@ const quizAttemptsSlice = createSlice({
     },
     clearAllQuizAttempts: (state) => {
       state.quizAttempts = [];
+    },
+    setQuizAttempts: (state, { payload: attempts }) => {
+      state.quizAttempts = attempts;
+    },
+    clearError: (state) => {
+      state.error = null;
     }
+  },
+  extraReducers: (builder) => {
+    builder
+      // Create attempt
+      .addCase(createQuizAttemptAsync.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createQuizAttemptAsync.fulfilled, (state, action) => {
+        state.loading = false;
+        // Add the backend-created attempt to local state
+        state.quizAttempts = [...state.quizAttempts, action.payload] as any;
+      })
+      .addCase(createQuizAttemptAsync.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to create quiz attempt';
+      })
+      // Submit attempt
+      .addCase(submitQuizAttemptAsync.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(submitQuizAttemptAsync.fulfilled, (state, action) => {
+        state.loading = false;
+        // Update the local attempt with backend-calculated results
+        state.quizAttempts = state.quizAttempts.map((a: any) =>
+          a._id === action.payload._id ? action.payload : a
+        ) as any;
+      })
+      .addCase(submitQuizAttemptAsync.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to submit quiz attempt';
+      })
+      // Fetch attempts
+      .addCase(fetchQuizAttemptsAsync.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchQuizAttemptsAsync.fulfilled, (state, action) => {
+        state.loading = false;
+        // Replace local attempts with backend data for this quiz
+        const fetchedAttempts = action.payload;
+        if (fetchedAttempts.length > 0) {
+          const quizId = fetchedAttempts[0].quiz;
+          // Remove existing attempts for this quiz and add fetched ones
+          const otherAttempts = state.quizAttempts.filter((a: any) => a.quiz !== quizId);
+          state.quizAttempts = [...otherAttempts, ...fetchedAttempts] as any;
+        }
+      })
+      .addCase(fetchQuizAttemptsAsync.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch quiz attempts';
+      });
   },
 });
 
@@ -79,10 +157,11 @@ export const {
   addQuizAttempt,
   updateQuizAttempt,
   deleteQuizAttempt,
-  submitQuizAttempt,
   updateQuizAttemptAnswers,
   clearQuizAttemptsForUser,
-  clearAllQuizAttempts
+  clearAllQuizAttempts,
+  setQuizAttempts,
+  clearError
 } = quizAttemptsSlice.actions;
 
 export default quizAttemptsSlice.reducer;

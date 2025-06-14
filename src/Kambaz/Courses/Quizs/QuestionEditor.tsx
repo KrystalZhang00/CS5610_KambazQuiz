@@ -4,35 +4,34 @@ import { FaTrash, FaPlus } from "react-icons/fa";
 
 interface Question {
   _id?: string;
-  quizId: string;
-  type: "multiple-choice" | "true-false" | "fill-blank";
+  type: "multiple_choice" | "true_false" | "fill_in_blank";
   title: string;
   points: number;
   question: string;
-  choices?: { text: string; correct: boolean }[];
+  choices?: { id: string; text: string }[];
+  correctOption?: string;
   correctAnswer?: boolean;
   possibleAnswers?: string[];
 }
 
 interface QuestionEditorProps {
   question?: Question;
-  quizId: string;
-  type: "multiple-choice" | "true-false" | "fill-blank";
+  type: "multiple_choice" | "true_false" | "fill_in_blank";
   onSave: (question: Question) => void;
   onCancel: () => void;
 }
 
-export default function QuestionEditor({ question, quizId, type, onSave, onCancel }: QuestionEditorProps) {
+export default function QuestionEditor({ question, type, onSave, onCancel }: QuestionEditorProps) {
   const [formData, setFormData] = useState<Question>({
-    quizId,
     type,
     title: "",
     points: 1,
     question: "",
     choices: [
-      { text: "", correct: true },
-      { text: "", correct: false }
+      { id: "option1", text: "" },
+      { id: "option2", text: "" }
     ],
+    correctOption: "option1",
     correctAnswer: true,
     possibleAnswers: [""]
   });
@@ -41,12 +40,19 @@ export default function QuestionEditor({ question, quizId, type, onSave, onCance
 
   useEffect(() => {
     if (question) {
+      const choices = question.choices || [
+        { id: "option1", text: "" },
+        { id: "option2", text: "" }
+      ];
+      // Ensure correctOption is set to a valid choice ID
+      const correctOption = question.correctOption && choices.some(c => c.id === question.correctOption) 
+        ? question.correctOption 
+        : choices[0]?.id;
+      
       setFormData({
         ...question,
-        choices: question.choices || [
-          { text: "", correct: true },
-          { text: "", correct: false }
-        ],
+        choices,
+        correctOption,
         possibleAnswers: question.possibleAnswers || [""]
       });
     } else {
@@ -64,28 +70,41 @@ export default function QuestionEditor({ question, quizId, type, onSave, onCance
     }));
   };
 
-  const handleChoiceChange = (index: number, field: 'text' | 'correct', value: string | boolean) => {
+  const handleChoiceChange = (index: number, value: string) => {
     const newChoices = [...(formData.choices || [])];
-    if (field === 'correct' && value === true) {
-      // Only one choice can be correct for multiple choice
-      newChoices.forEach((choice, i) => {
-        choice.correct = i === index;
-      });
-    } else {
-      newChoices[index] = { ...newChoices[index], [field]: value };
-    }
+    // Auto-generate ID based on text, but keep existing ID if text is just being updated
+    const choiceId = newChoices[index].id || `option${index + 1}`;
+    newChoices[index] = { 
+      id: choiceId,
+      text: value 
+    };
     setFormData(prev => ({ ...prev, choices: newChoices }));
+  };
+
+  const handleCorrectOptionChange = (choiceId: string) => {
+    setFormData(prev => ({ ...prev, correctOption: choiceId }));
   };
 
   const addChoice = () => {
     const newChoices = [...(formData.choices || [])];
-    newChoices.push({ text: "", correct: false });
+    const newId = `option${newChoices.length + 1}`;
+    newChoices.push({ id: newId, text: "" });
     setFormData(prev => ({ ...prev, choices: newChoices }));
   };
 
   const removeChoice = (index: number) => {
     const newChoices = formData.choices?.filter((_, i) => i !== index) || [];
-    setFormData(prev => ({ ...prev, choices: newChoices }));
+    // If we removed the currently selected correct option, select the first remaining option
+    const removedChoice = formData.choices?.[index];
+    let newCorrectOption = formData.correctOption;
+    if (removedChoice && formData.correctOption === removedChoice.id && newChoices.length > 0) {
+      newCorrectOption = newChoices[0].id;
+    }
+    setFormData(prev => ({ 
+      ...prev, 
+      choices: newChoices,
+      correctOption: newCorrectOption
+    }));
   };
 
   const handlePossibleAnswerChange = (index: number, value: string) => {
@@ -120,19 +139,22 @@ export default function QuestionEditor({ question, quizId, type, onSave, onCance
       newErrors.push("Points must be greater than 0");
     }
 
-    if (formData.type === "multiple-choice") {
+    if (formData.type === "multiple_choice") {
       if (!formData.choices || formData.choices.length < 2) {
         newErrors.push("At least 2 choices are required for multiple choice questions");
       }
-      if (!formData.choices?.some(choice => choice.correct)) {
-        newErrors.push("At least one choice must be marked as correct");
+      if (!formData.correctOption) {
+        newErrors.push("A correct option must be selected");
+      }
+      if (formData.correctOption && !formData.choices?.some(choice => choice.id === formData.correctOption)) {
+        newErrors.push("The selected correct option does not match any choice");
       }
       if (formData.choices?.some(choice => !choice.text.trim())) {
         newErrors.push("All choices must have text");
       }
     }
 
-    if (formData.type === "fill-blank") {
+    if (formData.type === "fill_in_blank") {
       if (!formData.possibleAnswers || formData.possibleAnswers.length === 0) {
         newErrors.push("At least one possible answer is required for fill in the blank questions");
       }
@@ -155,7 +177,6 @@ export default function QuestionEditor({ question, quizId, type, onSave, onCance
     const questionToSave: Question = {
       ...formData,
       _id: question?._id || new Date().getTime().toString(),
-      quizId: quizId
     };
 
     onSave(questionToSave);
@@ -163,7 +184,7 @@ export default function QuestionEditor({ question, quizId, type, onSave, onCance
 
   const renderTypeSpecificFields = () => {
     switch (formData.type) {
-      case "multiple-choice":
+      case "multiple_choice":
         return (
           <Card className="mb-3">
             <Card.Header>Choices</Card.Header>
@@ -174,16 +195,16 @@ export default function QuestionEditor({ question, quizId, type, onSave, onCance
                     <Form.Check
                       type="radio"
                       name="correctChoice"
-                      checked={choice.correct}
-                      onChange={() => handleChoiceChange(index, 'correct', true)}
+                      checked={formData.correctOption === choice.id}
+                      onChange={() => handleCorrectOptionChange(choice.id)}
                     />
                   </Col>
                   <Col xs={10}>
                     <Form.Control
                       type="text"
-                      placeholder={`Choice ${index + 1}`}
+                      placeholder={`Choice ${index + 1} (e.g., Alice, Bruce, Ray, Leo)`}
                       value={choice.text}
-                      onChange={(e) => handleChoiceChange(index, 'text', e.target.value)}
+                      onChange={(e) => handleChoiceChange(index, e.target.value)}
                     />
                   </Col>
                   <Col xs={1}>
@@ -202,7 +223,7 @@ export default function QuestionEditor({ question, quizId, type, onSave, onCance
           </Card>
         );
 
-      case "true-false":
+      case "true_false":
         return (
           <Card className="mb-3">
             <Card.Header>Correct Answer</Card.Header>
@@ -226,7 +247,7 @@ export default function QuestionEditor({ question, quizId, type, onSave, onCance
           </Card>
         );
 
-      case "fill-blank":
+      case "fill_in_blank":
         return (
           <Card className="mb-3">
             <Card.Header>Possible Correct Answers</Card.Header>

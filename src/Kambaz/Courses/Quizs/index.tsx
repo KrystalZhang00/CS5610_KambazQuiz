@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FaPlus, FaCheckCircle, FaTrash, FaEdit, FaBan, FaEllipsisV, FaCopy } from "react-icons/fa";
 import { BsQuestionCircle } from "react-icons/bs";
 import { Button, Modal, Dropdown, Form } from "react-bootstrap";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { deleteQuiz, addQuiz, toggleQuizPublish } from "./reducer";
+import { deleteQuiz, addQuiz, toggleQuizPublish, setQuizs } from "./reducer";
+import { API_BASE_URL } from '../../../config';
 
 interface Quiz {
   _id: string;
@@ -16,7 +17,7 @@ interface Quiz {
   availableFrom?: string;
   availableUntil?: string;
   published?: boolean;
-  questions?: number;
+  questions?: any[];
   timeLimit?: number;
   attempts?: number;
 }
@@ -27,23 +28,40 @@ export default function Quizs() {
   const dispatch = useDispatch();
   const { quizs } = useSelector((state: any) => state.quizsReducer);
   const { currentUser } = useSelector((state: any) => state.accountReducer);
-  const { courses } = useSelector((state: any) => state.coursesReducer);
+  const { courses } = useSelector((state: any) => state.coursesReducer || { courses: [] });
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [quizToCopy, setQuizToCopy] = useState<Quiz | null>(null);
   const [selectedCourse, setSelectedCourse] = useState("");
-  const [sortBy, setSortBy] = useState<"name" | "dueDate" | "availableDate">("name");
+  const [sortBy, setSortBy] = useState<"name" | "dueDate" | "availableDate">("availableDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  // 获取当前课程的测验列表
-  const courseQuizs = quizs.filter((quiz: Quiz) => {
-    if (currentUser?.role === "STUDENT") {
-      return quiz.course === cid && quiz.published;
-    }
-    return quiz.course === cid;
-  });
+  useEffect(() => {
+    if (!cid || !currentUser) return;
+    // Fetch quizzes from backend API with role-based filtering
+    const url = new URL(`${API_BASE_URL}/api/courses/${cid}/quizzes`);
+    url.searchParams.append('role', currentUser.role);
+    
+    fetch(url.toString())
+      .then(res => res.json())
+      .then(data => {
+        // No mapping to questionList, just use questions
+        const quizzes = data.map((quiz: any) => ({
+          ...quiz,
+          questions: Array.isArray(quiz.questions) ? quiz.questions : [],
+        }));
+        dispatch(setQuizs(quizzes));
+      })
+      .catch(err => {
+        console.error('Failed to fetch quizzes:', err);
+        dispatch(setQuizs([]));
+      });
+  }, [cid, currentUser, dispatch]);
+
+  // 获取当前课程的测验列表 (backend already filters by role)
+  const courseQuizs = quizs.filter((quiz: Quiz) => quiz.course === cid);
 
   // 排序测验列表
   const sortedQuizs = [...courseQuizs].sort((a, b) => {
@@ -67,16 +85,50 @@ export default function Quizs() {
     setShowDeleteModal(true);
   };
 
-  const confirmDeleteQuiz = () => {
+  const confirmDeleteQuiz = async () => {
     if (quizToDelete) {
-      dispatch(deleteQuiz(quizToDelete._id));
-      setShowDeleteModal(false);
-      setQuizToDelete(null);
+      try {
+        // Delete quiz via backend API
+        const response = await fetch(`${API_BASE_URL}/api/quizzes/${quizToDelete._id}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        
+        if (response.ok) {
+          // Only update local state after successful API call
+          dispatch(deleteQuiz(quizToDelete._id));
+          setShowDeleteModal(false);
+          setQuizToDelete(null);
+        } else {
+          alert('Failed to delete quiz');
+        }
+      } catch (error) {
+        console.error('Error deleting quiz:', error);
+        alert('Failed to delete quiz');
+      }
     }
   };
 
-  const handlePublishToggle = (quiz: Quiz) => {
-    dispatch(toggleQuizPublish(quiz._id));
+  const handlePublishToggle = async (quiz: Quiz) => {
+    try {
+      // Toggle publish status via backend API
+      const updatedQuiz = { ...quiz, published: !quiz.published };
+      const response = await fetch(`${API_BASE_URL}/api/quizzes/${quiz._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedQuiz),
+      });
+      
+      if (response.ok) {
+        // Only update local state after successful API call
+        dispatch(toggleQuizPublish(quiz._id));
+      } else {
+        alert('Failed to update quiz publish status');
+      }
+    } catch (error) {
+      console.error('Error updating quiz publish status:', error);
+      alert('Failed to update quiz publish status');
+    }
   };
 
   const handleCopyQuiz = (quiz: Quiz) => {
@@ -193,7 +245,7 @@ export default function Quizs() {
                       {" "}Due {formatDate(quiz.dueDate)}
                     </div>
                     <div className="small text-muted">
-                      {quiz.points || 0} pts | {quiz.questions || 0} Question{quiz.questions !== 1 ? 's' : ''}
+                      {quiz.points || 0} pts | {(quiz.questions?.length ?? 0)} Question{(quiz.questions?.length !== 1 ? 's' : '')}
                     </div>
                   </div>
                 </div>

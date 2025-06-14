@@ -15,9 +15,9 @@ interface Question {
   title: string;
   type: "multiple_choice" | "true_false" | "fill_in_blank";
   points: number;
-  questionText: string;
+  question: string;
   correctOption?: string;
-  options?: Option[];
+  choices?: Option[];
   correctAnswer?: boolean;
   possibleAnswers?: string[];
 }
@@ -26,7 +26,7 @@ interface Quiz {
   _id: string;
   title: string;
   course: string;
-  questionList?: Question[];
+  questions?: Question[];
 }
 
 export default function QuestionsEditor() {
@@ -39,7 +39,7 @@ export default function QuestionsEditor() {
     _id: qid || "",
     title: "",
     course: cid || "",
-    questionList: []
+    questions: []
   });
 
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
@@ -66,7 +66,7 @@ export default function QuestionsEditor() {
     if (type === "multiple_choice") {
       updatedQuestion = {
         ...updatedQuestion,
-        options: [
+        choices: [
           { id: "option1", text: "" },
           { id: "option2", text: "" }
         ],
@@ -77,7 +77,7 @@ export default function QuestionsEditor() {
     } else if (type === "true_false") {
       updatedQuestion = {
         ...updatedQuestion,
-        options: undefined,
+        choices: undefined,
         correctOption: undefined,
         correctAnswer: true,
         possibleAnswers: undefined
@@ -85,7 +85,7 @@ export default function QuestionsEditor() {
     } else {
       updatedQuestion = {
         ...updatedQuestion,
-        options: undefined,
+        choices: undefined,
         correctOption: undefined,
         correctAnswer: undefined,
         possibleAnswers: [""]
@@ -101,8 +101,8 @@ export default function QuestionsEditor() {
       type: questionType,
       title: "New Question",
       points: 10,
-      questionText: "",
-      options: questionType === "multiple_choice" ? [
+      question: "",
+      choices: questionType === "multiple_choice" ? [
         { id: "option1", text: "" },
         { id: "option2", text: "" }
       ] : undefined,
@@ -114,7 +114,7 @@ export default function QuestionsEditor() {
   };
 
   const handleEditQuestion = (questionId: string) => {
-    const question = quiz.questionList?.find(q => q._id === questionId);
+    const question = quiz.questions?.find(q => q._id === questionId);
     if (question) {
       setEditingQuestion(question);
     }
@@ -123,7 +123,7 @@ export default function QuestionsEditor() {
   const handleDeleteQuestion = (questionId: string) => {
     setQuiz({
       ...quiz,
-      questionList: quiz.questionList?.filter(q => q._id !== questionId)
+      questions: quiz.questions?.filter(q => q._id !== questionId)
     });
     setEditingQuestion(null);
   };
@@ -136,18 +136,18 @@ export default function QuestionsEditor() {
       return;
     }
 
-    if (!editingQuestion.questionText.trim()) {
+    if (!editingQuestion.question.trim()) {
       setErrorMessage("Please enter question text");
       return;
     }
 
     if (editingQuestion.type === "multiple_choice") {
-      if (!editingQuestion.options || editingQuestion.options.length < 2) {
+      if (!editingQuestion.choices || editingQuestion.choices.length < 2) {
         setErrorMessage("Please add at least two options");
         return;
       }
 
-      if (editingQuestion.options.some(opt => !opt.text.trim())) {
+      if (editingQuestion.choices.some(opt => !opt.text.trim())) {
         setErrorMessage("Please fill in all option texts");
         return;
       }
@@ -172,7 +172,7 @@ export default function QuestionsEditor() {
 
     setErrorMessage("");
 
-    const updatedQuestionList = [...(quiz.questionList || [])];
+    const updatedQuestionList = [...(quiz.questions || [])];
     const existingIndex = updatedQuestionList.findIndex(q => q._id === editingQuestion._id);
 
     if (existingIndex === -1) {
@@ -183,7 +183,7 @@ export default function QuestionsEditor() {
 
     setQuiz({
       ...quiz,
-      questionList: updatedQuestionList
+      questions: updatedQuestionList
     });
 
     setEditingQuestion(null);
@@ -195,36 +195,36 @@ export default function QuestionsEditor() {
   };
 
   const handleAddOption = () => {
-    if (!editingQuestion?.options) return;
+    if (!editingQuestion?.choices) return;
 
-    const newOptionId = `option${editingQuestion.options.length + 1}`;
+    const newOptionId = `option${editingQuestion.choices.length + 1}`;
     setEditingQuestion({
       ...editingQuestion,
-      options: [...editingQuestion.options, { id: newOptionId, text: "" }]
+      choices: [...editingQuestion.choices, { id: newOptionId, text: "" }]
     });
   };
 
   const handleRemoveOption = (optionId: string) => {
-    if (!editingQuestion?.options) return;
+    if (!editingQuestion?.choices) return;
 
-    if (editingQuestion.options.length <= 2) {
+    if (editingQuestion.choices.length <= 2) {
       setErrorMessage("Multiple choice questions must have at least 2 options");
       return;
     }
 
     setEditingQuestion({
       ...editingQuestion,
-      options: editingQuestion.options.filter(opt => opt.id !== optionId),
-      correctOption: editingQuestion.correctOption === optionId ? editingQuestion.options[0].id : editingQuestion.correctOption
+      choices: editingQuestion.choices.filter(opt => opt.id !== optionId),
+      correctOption: editingQuestion.correctOption === optionId ? editingQuestion.choices[0].id : editingQuestion.correctOption
     });
   };
 
   const handleOptionTextChange = (optionId: string, text: string) => {
-    if (!editingQuestion?.options) return;
+    if (!editingQuestion?.choices) return;
 
     setEditingQuestion({
       ...editingQuestion,
-      options: editingQuestion.options.map(opt =>
+      choices: editingQuestion.choices.map(opt =>
         opt.id === optionId ? { ...opt, text } : opt
       )
     });
@@ -267,11 +267,11 @@ export default function QuestionsEditor() {
   const handleSaveQuiz = () => {
     if (!quiz) return;
 
-    const totalPoints = quiz.questionList?.reduce((sum, q) => sum + q.points, 0) || 0;
+    const totalPoints = quiz.questions?.reduce((sum, q) => sum + q.points, 0) || 0;
 
     const updatedQuiz = {
       ...quiz,
-      questions: quiz.questionList?.length || 0,
+      questions: quiz.questions?.length || 0,
       points: totalPoints
     };
 
@@ -285,11 +285,11 @@ export default function QuestionsEditor() {
   const handleSaveAndPublish = () => {
     if (!quiz) return;
 
-    const totalPoints = quiz.questionList?.reduce((sum, q) => sum + q.points, 0) || 0;
+    const totalPoints = quiz.questions?.reduce((sum, q) => sum + q.points, 0) || 0;
 
     const updatedQuiz = {
       ...quiz,
-      questions: quiz.questionList?.length || 0,
+      questions: quiz.questions?.length || 0,
       points: totalPoints,
       published: true
     };
@@ -348,8 +348,8 @@ export default function QuestionsEditor() {
               <Form.Control
                 as="textarea"
                 rows={3}
-                value={editingQuestion.questionText}
-                onChange={(e) => setEditingQuestion({...editingQuestion, questionText: e.target.value})}
+                value={editingQuestion.question}
+                onChange={(e) => setEditingQuestion({...editingQuestion, question: e.target.value})}
                 placeholder="Enter your question here..."
               />
             </Form.Group>
@@ -364,7 +364,7 @@ export default function QuestionsEditor() {
                   </Button>
                 </div>
 
-                {editingQuestion.options?.map((option) => (
+                {editingQuestion.choices?.map((option) => (
                   <div key={option.id} className="d-flex align-items-center mb-2">
                     <Form.Check
                       type="radio"
@@ -465,7 +465,7 @@ export default function QuestionsEditor() {
   };
 
   const renderQuestionList = () => {
-    if (!quiz.questionList?.length) {
+    if (!quiz.questions?.length) {
       return (
         <Alert variant="info">
           No questions yet. Click "Add Question" to create your first question.
@@ -475,7 +475,7 @@ export default function QuestionsEditor() {
 
     return (
       <ListGroup className="mb-4">
-        {quiz.questionList.map((question) => (
+        {quiz.questions.map((question) => (
           <ListGroup.Item 
             key={question._id}
             className="d-flex justify-content-between align-items-center"
@@ -545,9 +545,9 @@ export default function QuestionsEditor() {
 
       <div className="d-flex justify-content-between align-items-center mb-3">
         <div>
-          <h5>Questions <Badge bg="secondary">{quiz.questionList?.length || 0}</Badge></h5>
+          <h5>Questions <Badge bg="secondary">{quiz.questions?.length || 0}</Badge></h5>
           <div className="text-muted">
-            Total Points: {quiz.questionList?.reduce((sum, q) => sum + q.points, 0) || 0}
+            Total Points: {quiz.questions?.reduce((sum, q) => sum + q.points, 0) || 0}
           </div>
         </div>
         <Button 

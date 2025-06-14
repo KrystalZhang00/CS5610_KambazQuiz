@@ -3,35 +3,9 @@ import { quizs, questions } from "../../Database";
 
 export type QuestionType = "multiple_choice" | "true_false" | "fill_in_blank";
 
-interface Question {
-  _id: string;
-  type: QuestionType;
-  title: string;
-  question: string;
-  points: number;
-  choices?: {
-    id: string;
-    text: string;
-    correct: boolean;
-  }[];
-  correctOption?: string;
-  correctAnswer?: boolean;
-  possibleAnswers?: string[];
-  quizId?: string;
-}
 
-interface Quiz {
-  _id: string;
-  title: string;
-  course: string;
-  description?: string;
-  points?: number;
-  timeLimit?: number;
-  attempts?: number;
-  questionList: Question[];
-  shuffleAnswers?: boolean;
-  questionCount?: number;
-}
+
+
 
 const initialState = {
   quizs: quizs || [],
@@ -53,8 +27,8 @@ const quizsSlice = createSlice({
         availableFrom: quiz.availableFrom || "",
         availableUntil: quiz.availableUntil || "",
         published: quiz.published || false,
-        questionList: quiz.questionList || [],
-        questionCount: quiz.questionList ? quiz.questionList.length : 0,
+        questions: quiz.questions || [],
+        questionCount: quiz.questions ? quiz.questions.length : 0,
         timeLimit: quiz.timeLimit || 60,
         attempts: quiz.attempts || 1,
       };
@@ -132,26 +106,6 @@ export const {
   setQuestions
 } = quizsSlice.actions;
 
-const validateQuestion = (question: Question) => {
-  switch (question.type) {
-    case "multiple_choice":
-      return (
-        question.choices &&
-        question.choices.length >= 2 &&
-        question.correctOption &&
-        question.choices.some(opt => opt.id === question.correctOption)
-      );
-    case "true_false":
-      return typeof question.correctAnswer === "boolean";
-    case "fill_in_blank":
-      return (
-        question.possibleAnswers &&
-        question.possibleAnswers.length > 0 &&
-        question.possibleAnswers.every(ans => ans.trim() !== "")
-      );
-    default:
-      return false;
-  }
-};
+
 
 export default quizsSlice.reducer; 

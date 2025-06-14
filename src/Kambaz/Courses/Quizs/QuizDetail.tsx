@@ -4,14 +4,17 @@ import { Button, Card, Badge, Table, Row, Col } from "react-bootstrap";
 import { FaEdit, FaCheckCircle, FaBan, FaEye } from "react-icons/fa";
 import { useSelector, useDispatch } from "react-redux";
 import { toggleQuizPublish } from "./reducer";
+import { fetchQuizAttemptsAsync } from "./quizAttemptsReducer";
+import type { AppDispatch } from "../../store";
+import { API_BASE_URL } from '../../../config';
 
 interface Question {
   _id: string;
-  type: string;
+  type: "multiple_choice" | "true_false" | "fill_in_blank";
   title: string;
-  questionText: string;
+  question: string;
   points: number;
-  options?: {
+  choices?: {
     id: string;
     text: string;
   }[];
@@ -30,10 +33,9 @@ interface Quiz {
   availableFrom?: string;
   availableUntil?: string;
   published?: boolean;
-  questions?: number;
+  questions: Question[];
   timeLimit?: number;
   attempts?: number;
-  questionList?: Question[];
   shuffleAnswers?: boolean;
   quizType?: string;
   assignmentGroup?: string;
@@ -67,14 +69,13 @@ interface QuizAttempt {
 export default function QuizDetail() {
   const { cid, qid } = useParams<{ cid: string; qid: string }>();
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const { quizs } = useSelector((state: any) => state.quizsReducer);
   const { currentUser } = useSelector((state: any) => state.accountReducer);
   const { quizAttempts } = useSelector((state: any) => state.quizAttemptsReducer);
   
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [userAttempts, setUserAttempts] = useState<QuizAttempt[]>([]);
-  const [latestAttempt, setLatestAttempt] = useState<QuizAttempt | null>(null);
   
   // Check if current user has edit permissions (FACULTY or ADMIN)
   const canEdit = currentUser?.role === "FACULTY" || currentUser?.role === "ADMIN";
@@ -105,37 +106,61 @@ export default function QuizDetail() {
       };
       
       setQuiz(quizWithDefaults);
-      
-      // Find user attempts for this quiz
-      if (currentUser) {
-        const attempts = quizAttempts.filter(
-          (a: QuizAttempt) => a.quiz === qid && a.user === currentUser._id
-        );
-        setUserAttempts(attempts);
-        
-        // Find latest completed attempt
-        const completedAttempts = attempts.filter((a: QuizAttempt) => a.endTime);
-        if (completedAttempts.length > 0) {
-          const sortedAttempts = [...completedAttempts].sort((a, b) => 
-            new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
-          );
-          setLatestAttempt(sortedAttempts[0]);
-        }
-      }
     }
-  }, [qid, quizs, currentUser, quizAttempts]);
+  }, [qid, quizs]);
 
-  const handlePublishToggle = () => {
+  // Separate useEffect for fetching quiz attempts (students only)
+  useEffect(() => {
+    if (!qid || !currentUser) return;
+    
+    // Only fetch attempts for students, not faculty
+    if (currentUser.role === "STUDENT") {
+      dispatch(fetchQuizAttemptsAsync({ quizId: qid, userId: currentUser._id }));
+    }
+  }, [qid, currentUser, dispatch]);
+
+  // Separate useEffect for processing attempts after they're fetched
+  useEffect(() => {
+    if (!currentUser || !qid) return;
+    
+    // Find user attempts for this quiz
+    const attempts = quizAttempts.filter(
+      (a: QuizAttempt) => a.quiz === qid && a.user === currentUser._id
+    );
+    setUserAttempts(attempts);
+    
+
+  }, [currentUser, qid, quizAttempts]);
+
+  const handlePublishToggle = async () => {
     if (quiz) {
-      dispatch(toggleQuizPublish(quiz._id));
+      try {
+        // Toggle publish status via backend API
+        const updatedQuiz = { ...quiz, published: !quiz.published };
+        const response = await fetch(`${API_BASE_URL}/api/quizzes/${quiz._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedQuiz),
+        });
+        
+        if (response.ok) {
+          // Only update local state after successful API call
+          dispatch(toggleQuizPublish(quiz._id));
+        } else {
+          alert('Failed to update quiz publish status');
+        }
+      } catch (error) {
+        console.error('Error updating quiz publish status:', error);
+        alert('Failed to update quiz publish status');
+      }
     }
   };
 
   const getTotalPoints = (): number => {
     if (!quiz) return 0;
     
-    if (quiz.questionList && quiz.questionList.length > 0) {
-      return quiz.questionList.reduce((sum: number, q: Question) => sum + (q.points || 0), 0);
+    if (quiz.questions && quiz.questions.length > 0) {
+      return quiz.questions.reduce((sum: number, q: Question) => sum + (q.points || 0), 0);
     }
     
     return quiz.points || 0;
@@ -345,7 +370,7 @@ export default function QuizDetail() {
                   <tbody>
                     {userAttempts
                       .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
-                      .map((attempt, index) => (
+                      .map((attempt) => (
                         <tr key={attempt._id}>
                           <td>{attempt.attemptNumber}</td>
                           <td>{new Date(attempt.startTime).toLocaleDateString()}</td>
@@ -361,17 +386,13 @@ export default function QuizDetail() {
                           </td>
                           <td>
                             {attempt.endTime ? (
-                              index === 0 ? (
-                                <Button
-                                  variant="outline-primary"
-                                  size="sm"
-                                  onClick={() => navigate(`/Kambaz/Courses/${cid}/Quizs/${qid}/preview?viewAttempt=${attempt._id}`)}
-                                >
-                                  View Results
-                                </Button>
-                              ) : (
-                                <span className="text-muted small">Results unavailable</span>
-                              )
+                              <Button
+                                variant="outline-primary"
+                                size="sm"
+                                onClick={() => navigate(`/Kambaz/Courses/${cid}/Quizs/${qid}/preview?viewAttempt=${attempt._id}`)}
+                              >
+                                View Results
+                              </Button>
                             ) : (
                               <Button
                                 variant="outline-primary"
