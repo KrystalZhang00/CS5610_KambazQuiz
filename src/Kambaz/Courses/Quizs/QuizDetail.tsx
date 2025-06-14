@@ -142,6 +142,7 @@ export default function QuizDetail() {
 
   const formatDate = (dateString: string | undefined): string => {
     if (!dateString) return "";
+    // All dates are now in datetime-local format (YYYY-MM-DDTHH:MM)
     const date = new Date(dateString);
     return `${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
   };

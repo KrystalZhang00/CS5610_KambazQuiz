@@ -243,9 +243,18 @@ export default function PreviewQuiz() {
       a.quiz === qid && a.user === currentUser._id
     );
     
+    // Format current time as datetime-local (YYYY-MM-DDTHH:MM) to match quiz date format
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}`;
+    
     const attemptData = {
       user: currentUser._id,
-      startTime: new Date().toISOString(),
+      startTime: localTimeString,
       attemptNumber: userAttempts.length + 1
     };
     
