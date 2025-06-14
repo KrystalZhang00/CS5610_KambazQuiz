@@ -12,7 +12,7 @@ import quizAttemptsReducer from "./Courses/Quizs/quizAttemptsReducer";
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['quizsReducer', 'enrollmentsReducer', 'quizAttemptsReducer', 'coursesReducer'], 
+  whitelist: ['quizsReducer', 'enrollmentsReducer', 'quizAttemptsReducer', 'coursesReducer', 'accountReducer'], 
 };
 
 const rootReducer = combineReducers({

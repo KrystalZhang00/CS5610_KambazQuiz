@@ -3,7 +3,7 @@ import { Form, Button, Alert } from "react-bootstrap";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { setCurrentUser } from "./reducer";
-import * as db from "../Database";
+import * as authClient from "./client";
 
 export default function Signup() {
   const [user, setUser] = useState({
@@ -17,62 +17,43 @@ export default function Signup() {
     role: "STUDENT"
   });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const signup = (e: React.FormEvent) => {
+  const signup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
-    // Validate input
-    if (!user.username || !user.password || !user.firstName || !user.lastName || !user.email) {
-      setError("Please fill in all required fields");
-      return;
+    try {
+      console.log("Creating new user:", user);
+
+      const newUser = await authClient.signup({
+        username: user.username,
+        password: user.password,
+        verifyPassword: user.verifyPassword,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        dob: user.dob,
+        role: user.role
+      });
+
+      console.log("Signup successful, user:", newUser);
+
+      // Auto-login new user
+      dispatch(setCurrentUser(newUser));
+      
+      alert("Registration successful!");
+      navigate("/Kambaz/Dashboard");
+
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      setError(error.message || "Registration failed");
+    } finally {
+      setLoading(false);
     }
-
-    if (user.password !== user.verifyPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (user.password.length < 3) {
-      setError("Password must be at least 3 characters long");
-      return;
-    }
-
-    // Check if username already exists
-    const existingUser = db.users.find((u: any) => u.username === user.username);
-    if (existingUser) {
-      setError("Username already exists");
-      return;
-    }
-
-    // Create new user
-    const newUser = {
-      _id: new Date().getTime().toString(),
-      username: user.username,
-      password: user.password,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      dob: user.dob || new Date().toISOString().split('T')[0],
-      role: user.role,
-      loginId: `00${new Date().getTime()}S`,
-      section: "S101",
-      lastActivity: new Date().toISOString().split('T')[0],
-      totalActivity: "00:00:00"
-    };
-
-    console.log("Creating new user:", newUser);
-
-    // Add to database (in real app, should call API)
-    db.users.push(newUser);
-
-    // Auto-login new user
-    dispatch(setCurrentUser(newUser));
-    
-    alert("Registration successful!");
-    navigate("/Kambaz/Dashboard");
   };
 
   return (
@@ -87,6 +68,7 @@ export default function Signup() {
           placeholder="Username *" 
           className="wd-username mb-2"
           required
+          disabled={loading}
         />
         <Form.Control 
           value={user.password}
@@ -95,6 +77,7 @@ export default function Signup() {
           type="password" 
           className="wd-password mb-2"
           required
+          disabled={loading}
         />
         <Form.Control 
           value={user.verifyPassword}
@@ -103,6 +86,7 @@ export default function Signup() {
           type="password" 
           className="wd-password-verify mb-2"
           required
+          disabled={loading}
         />
         <Form.Control 
           value={user.firstName}
@@ -110,6 +94,7 @@ export default function Signup() {
           placeholder="First Name *" 
           className="mb-2"
           required
+          disabled={loading}
         />
         <Form.Control 
           value={user.lastName}
@@ -117,6 +102,7 @@ export default function Signup() {
           placeholder="Last Name *" 
           className="mb-2"
           required
+          disabled={loading}
         />
         <Form.Control 
           value={user.email}
@@ -125,6 +111,7 @@ export default function Signup() {
           type="email"
           className="mb-2"
           required
+          disabled={loading}
         />
         <Form.Control 
           value={user.dob}
@@ -132,32 +119,34 @@ export default function Signup() {
           placeholder="Date of Birth" 
           type="date"
           className="mb-2"
+          disabled={loading}
         />
         <Form.Select 
           value={user.role}
           onChange={(e) => setUser({ ...user, role: e.target.value })}
-          className="mb-2"
+          className="mb-3"
+          disabled={loading}
         >
           <option value="STUDENT">Student</option>
           <option value="FACULTY">Faculty</option>
           <option value="TA">Teaching Assistant</option>
-          <option value="ADMIN">Administrator</option>
+          <option value="ADMIN">Admin</option>
         </Form.Select>
         
         <Button 
-          type="submit"
-          className="btn btn-primary w-100 mb-2"
+          type="submit" 
+          className="w-100 mb-2"
+          disabled={loading}
         >
-          Sign up
+          {loading ? "Creating Account..." : "Sign up"}
         </Button>
       </Form>
       
-      <Link 
-        to="/Kambaz/Account/Signin"
-        className="btn btn-link w-100"
-      >
-        Already have an account? Sign in
-      </Link>
+      <div className="text-center">
+        <Link to="/Kambaz/Account/Signin">
+          Already have an account? Sign in
+        </Link>
+      </div>
     </div>
   );
 }
