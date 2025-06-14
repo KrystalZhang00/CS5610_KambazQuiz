@@ -375,7 +375,7 @@ export default function PreviewQuiz() {
     const answerMap = new Map();
     
     // First add all Redux answers
-    reduxAnswers.forEach(answer => {
+    reduxAnswers.forEach((answer: {questionId: string, userAnswer: string, isCorrect: boolean}) => {
       answerMap.set(answer.questionId, answer.userAnswer);
     });
     
