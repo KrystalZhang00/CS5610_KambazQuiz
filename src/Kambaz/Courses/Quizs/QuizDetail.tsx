@@ -91,10 +91,11 @@ export default function QuizDetail() {
           body: JSON.stringify(updatedQuiz),
         });
         
-        if (response.ok) {
-          // Only update local state after successful API call
-          dispatch(toggleQuizPublish(quiz._id));
-        } else {
+              if (response.ok) {
+        // Update both Redux and local component state after successful API call
+        dispatch(toggleQuizPublish(quiz._id));
+        setQuiz((prevQuiz: Quiz | null) => prevQuiz ? { ...prevQuiz, published: !prevQuiz.published } : null);
+      } else {
           alert('Failed to update quiz publish status');
         }
       } catch (error) {
