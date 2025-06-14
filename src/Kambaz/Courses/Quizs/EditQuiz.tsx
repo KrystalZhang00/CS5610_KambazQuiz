@@ -3,7 +3,7 @@ import type { ChangeEvent, KeyboardEvent } from "react";
 import { Form, Button, Card, Badge, CloseButton, Alert, Row, Col, Tabs, Tab } from "react-bootstrap";
 import { useParams, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { updateQuiz } from "./reducer";
+import { updateQuiz, addQuiz } from "./reducer";
 import QuestionsList from "./QuestionsList";
 import { API_BASE_URL } from '../../../config';
 
@@ -145,6 +145,8 @@ export default function EditQuiz() {
       });
       if (response.ok) {
         const newQuiz = await response.json();
+        // Add new quiz to Redux store
+        dispatch(addQuiz(newQuiz));
         // Navigate to the new quiz's details page
         navigate(`/Kambaz/Courses/${cid}/Quizs/${newQuiz._id}`);
       } else {
