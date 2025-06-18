@@ -244,18 +244,24 @@ export default function Landing() {
       <div className="mt-4 p-4 bg-white rounded shadow-sm" style={{ maxWidth: "600px", width: "100%" }}>
         <h3 className="text-center mb-4 text-secondary">Team Information</h3>
         
+        {/* Course Information */}
+        <div className="text-center mb-4">
+          <h5 className="text-primary mb-2">CS5610 Summer 1</h5>
+          <p className="text-muted mb-0">Web Development</p>
+        </div>
+        
         {/* Team Members */}
         <div className="mb-4">
           <h5 className="text-primary mb-3">Team Members</h5>
           <div className="row">
-            <div className="col-md-6 mb-2">
-              <strong>Zixin Lin</strong> - CS5610 Summer 1
+            <div className="col-md-4 mb-2 text-center">
+              <strong>Zixin Lin</strong>
             </div>
-            <div className="col-md-6 mb-2">
-              <strong>Zhong Yun</strong> - CS5610 Summer 1
+            <div className="col-md-4 mb-2 text-center">
+              <strong>Zhong Yun</strong>
             </div>
-            <div className="col-md-6 mb-2">
-              <strong>Zhiyi Zhang</strong> - CS5610 Summer 1
+            <div className="col-md-4 mb-2 text-center">
+              <strong>Zhiyi Zhang</strong>
             </div>
           </div>
         </div>
