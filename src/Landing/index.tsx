@@ -239,6 +239,56 @@ export default function Landing() {
           </Tab>
         </Tabs>
       </div>
+      
+      {/* Team Information Section */}
+      <div className="mt-4 p-4 bg-white rounded shadow-sm" style={{ maxWidth: "600px", width: "100%" }}>
+        <h3 className="text-center mb-4 text-secondary">Team Information</h3>
+        
+        {/* Team Members */}
+        <div className="mb-4">
+          <h5 className="text-primary mb-3">Team Members</h5>
+          <div className="row">
+            <div className="col-md-6 mb-2">
+              <strong>Zixin Lin</strong> - CS5610 Summer 1
+            </div>
+            <div className="col-md-6 mb-2">
+              <strong>Zhong Yun</strong> - CS5610 Summer 1
+            </div>
+            <div className="col-md-6 mb-2">
+              <strong>Zhiyi Zhang</strong> - CS5610 Summer 1
+            </div>
+          </div>
+        </div>
+        
+        {/* GitHub Repository Links */}
+        <div className="mb-3">
+          <h5 className="text-primary mb-3">GitHub Repositories</h5>
+          <div className="d-flex flex-column gap-3">
+            <div>
+              <div><strong>Frontend Repository:</strong></div>
+              <a 
+                href="https://github.com/KrystalZhang00/CS5610_KambazQuiz" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-decoration-none text-break"
+              >
+                https://github.com/KrystalZhang00/CS5610_KambazQuiz
+              </a>
+            </div>
+            <div>
+              <div><strong>Backend Repository:</strong></div>
+              <a 
+                href="https://github.com/KrystalZhang00/kanbas-backend" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-decoration-none text-break"
+              >
+                https://github.com/KrystalZhang00/kanbas-backend
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </Container>
   );
 }
