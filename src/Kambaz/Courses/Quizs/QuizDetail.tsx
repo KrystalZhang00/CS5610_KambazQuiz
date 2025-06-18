@@ -25,6 +25,13 @@ export default function QuizDetail() {
   const canEdit = currentUser?.role === "FACULTY" || currentUser?.role === "ADMIN";
   const isStudent = currentUser?.role === "STUDENT";
 
+  // Get the latest attempt (most recent by startTime)
+  const latestAttempt = userAttempts.length > 0 ? 
+    userAttempts.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0] : null;
+  
+  // Get completed attempts count
+  const completedAttempts = userAttempts.filter((a: QuizAttempt) => a.endTime);
+
   useEffect(() => {
     if (!qid) return;
     
@@ -130,8 +137,7 @@ export default function QuizDetail() {
     if (availableFrom && now < availableFrom) return false;
     if (availableUntil && now > availableUntil) return false;
     
-    // Check if user has any attempts left
-    const completedAttempts = userAttempts.filter((a: QuizAttempt) => a.endTime);
+    // Check if user has any attempts left (using the completedAttempts already calculated above)
     
     // If multipleAttempts is false, only allow one attempt
     if (!quiz.multipleAttempts && completedAttempts.length > 0) return false;
@@ -140,6 +146,9 @@ export default function QuizDetail() {
     const maxAttempts = quiz.attempts || 1;
     return completedAttempts.length < maxAttempts;
   })();
+
+  // Check if student can start a new attempt (no in-progress attempts)
+  const canStartNewAttempt = canTakeQuiz && (!latestAttempt || latestAttempt.endTime);
 
   const formatDate = (dateString: string | undefined): string => {
     if (!dateString) return "";
@@ -178,8 +187,8 @@ export default function QuizDetail() {
               </Button>
             </>
           )}
-          {/* Only show Take Quiz button here if there are no previous attempts */}
-          {isStudent && canTakeQuiz && (
+          {/* Only show Take Quiz button here if student can start new attempt */}
+          {isStudent && canStartNewAttempt && (
             <Button 
               variant="success"
               onClick={() => navigate(`/Kambaz/Courses/${cid}/Quizs/${qid}/preview`)}
@@ -294,65 +303,57 @@ export default function QuizDetail() {
                 <h5 className="mb-0">Your Quiz Status</h5>
               </Card.Header>
               <Card.Body>
-                <h6>All Attempts</h6>
-                <Table bordered hover>
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Date</th>
-                      <th>Score</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {userAttempts
-                      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
-                      .map((attempt: QuizAttempt) => (
-                        <tr key={attempt._id}>
-                          <td>{attempt.attemptNumber}</td>
-                          <td>{new Date(attempt.startTime).toLocaleDateString()}</td>
-                          <td>
-                            {attempt.endTime ? 
-                              `${attempt.score}/${attempt.totalPoints} (${Math.round((attempt.score / attempt.totalPoints) * 100)}%)` : 
-                              "In progress"}
-                          </td>
-                          <td>
-                            {attempt.endTime ? 
-                              <Badge bg="success">Completed</Badge> : 
-                              <Badge bg="warning">In progress</Badge>}
-                          </td>
-                          <td>
-                            {attempt.endTime ? (
-                              <Button
-                                variant="outline-primary"
-                                size="sm"
-                                onClick={() => navigate(`/Kambaz/Courses/${cid}/Quizs/${qid}/preview?viewAttempt=${attempt._id}`)}
-                              >
-                                View Results
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="outline-primary"
-                                size="sm"
-                                onClick={() => navigate(`/Kambaz/Courses/${cid}/Quizs/${qid}/preview`)}
-                              >
-                                Continue
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </Table>
-                {/* Start New Attempt按钮只要canTakeQuiz为true就显示 */}
-                {canTakeQuiz && (
+                {latestAttempt ? (
+                  <>
+                    <h6>Latest Attempt</h6>
+                    <div className="d-flex justify-content-between border p-3 rounded bg-light mb-3">
+                      <div>
+                        <div><strong>Attempt:</strong> {latestAttempt.attemptNumber} of {quiz.attempts}</div>
+                        <div><strong>Date:</strong> {new Date(latestAttempt.startTime).toLocaleDateString()}</div>
+                        <div><strong>Score:</strong> {latestAttempt.endTime ? 
+                          `${latestAttempt.score}/${latestAttempt.totalPoints} (${Math.round((latestAttempt.score / latestAttempt.totalPoints) * 100)}%)` : 
+                          "In progress"}
+                        </div>
+                        <div><strong>Status:</strong> {latestAttempt.endTime ? 
+                          <Badge bg="success">Completed</Badge> : 
+                          <Badge bg="warning">In progress</Badge>}
+                        </div>
+                      </div>
+                      <div className="d-flex flex-column justify-content-center">
+                        {latestAttempt.endTime ? (
+                          <Button
+                            variant="outline-primary"
+                            onClick={() => navigate(`/Kambaz/Courses/${cid}/Quizs/${qid}/preview?viewAttempt=${latestAttempt._id}`)}
+                          >
+                            View Results
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline-primary"
+                            onClick={() => navigate(`/Kambaz/Courses/${cid}/Quizs/${qid}/preview`)}
+                          >
+                            Continue Quiz
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-muted small">
+                      Total attempts completed: {completedAttempts.length} of {quiz.attempts}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted">You haven't started this quiz yet.</p>
+                  </div>
+                )}
+                
+                {canStartNewAttempt && (
                   <div className="d-grid mt-3">
                     <Button 
                       variant="success"
                       onClick={() => navigate(`/Kambaz/Courses/${cid}/Quizs/${qid}/preview`)}
                     >
-                      Start New Attempt
+                      {completedAttempts.length === 0 ? "Start Quiz" : "Start New Attempt"}
                     </Button>
                   </div>
                 )}
