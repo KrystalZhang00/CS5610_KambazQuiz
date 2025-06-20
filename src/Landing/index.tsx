@@ -266,6 +266,37 @@ export default function Landing() {
           </div>
         </div>
         
+        {/* Team Contributions */}
+        <div className="mb-4">
+          <h5 className="text-primary mb-3">Team Contributions</h5>
+          <div className="row">
+            <div className="col-md-4 mb-2">
+              <div className="text-center">
+                <strong>Zixin Lin</strong>
+                <div className="small text-muted mt-1">
+                  Frontend: Preview screen, quiz answers & scores
+                </div>
+              </div>
+            </div>
+            <div className="col-md-4 mb-2">
+              <div className="text-center">
+                <strong>Zhong Yun</strong>
+                <div className="small text-muted mt-1">
+                  Frontend: Quiz details & editors
+                </div>
+              </div>
+            </div>
+            <div className="col-md-4 mb-2">
+              <div className="text-center">
+                <strong>Zhiyi Zhang</strong>
+                <div className="small text-muted mt-1">
+                  Backend & database
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         {/* GitHub Repository Links */}
         <div className="mb-3">
           <h5 className="text-primary mb-3">GitHub Repositories</h5>
